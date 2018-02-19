@@ -5,36 +5,41 @@ require 'json'
 require 'pry'
 
 class Notifier
-  def initialize(seconds)
+  def self.poll(options = {})
+    new(options).poll
+
+  rescue Exception => e
+    $stderr.puts e.message
+    exit 1
+  end
+
+  def initialize(options = {})
     @rest_api = Coinbase::Exchange::Client.new(
-      ENV['GDAX_API_KEY'],
-      ENV['GDAX_API_SECRET'],
-      ENV['GDAX_API_PASS']
+      ENV.fetch('GDAX_API_KEY'),
+      ENV.fetch('GDAX_API_SECRET'),
+      ENV.fetch('GDAX_API_PASS')
     )
+
     @maker_event = ENV.fetch('MAKER_EVENT')
-    @maker_key = ENV.fetch('MAKER_KEY')
-    @fill_cache = create_fill_cache(seconds)
+    @maker_key   = ENV.fetch('MAKER_KEY')
+
+    @frequency   = ENV.fetch('FREQ', 15).to_i # Seconds
+    @fill_cache  = {}
+
+    prime_fill_cache
   end
 
-  def create_fill_cache(seconds)
-    fills(Time.now.utc - seconds).map { |m| m['order_id'] }
-  end
-
-  def fills(start_date = Time.now.utc)
-    @rest_api.fills(start_date: start_date)
-  end
-
-  def poll(frequency = 1)
-    while true
-      check_seconds = frequency * 60 * 60
-      fills(Time.now.utc - check_seconds).each do |fill|
-        next if @fill_cache.include? fill['order_id']
-
-        puts fill['order_id']
-        @fill_cache << fill['order_id']
-        send_notification(fill)
+  def poll
+    loop do
+      fills.each do |fill|
+        unless cached?(fill)
+          cache(fill)
+          send_notification(fill)
+        end
       end
-      sleep(frequency)
+
+      clean_cache
+      sleep(@frequency)
     end
   end
 
@@ -43,7 +48,8 @@ class Notifier
     side = fill['side'].capitalize
     size = fill['size'].to_f.round(2)
     price = fill['price'].to_f.round(4)
-    info = "#{size} @ #{price}"
+    usd = fill['usd_volume'].to_f.round(2)
+    info = "#{size} @ #{price} (#{usd}$)"
 
     conn = Faraday.new('https://maker.ifttt.com/')
     conn.post do |req|
@@ -56,4 +62,37 @@ class Notifier
       }.to_json
     end
   end
+
+  protected
+
+    def fills(start_date = cache_window)
+      @rest_api.fills(start_date: start_date)
+    end
+
+    def prime_fill_cache
+      fills.each {|fill| cache(fill) }
+    end
+
+    def cache(fill)
+      @fill_cache[fill['order_id']] = Time.parse(fill['created_at'])
+    end
+
+    def cached?(fill)
+      @fill_cache.key?(fill['order_id'])
+    end
+
+    def cache_window
+      Time.now.utc - @frequency * 3
+    end
+
+    def clean_cache
+      cache_window = self.cache_window
+
+      @fill_cache.each do |order_id, date|
+        if date < cache_window
+          @fill_cache.delete(order_id)
+        end
+      end
+    end
+
 end
