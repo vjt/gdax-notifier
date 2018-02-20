@@ -47,14 +47,16 @@ class Notifier
   end
 
   def send_notification(fill)
-    product_id = fill['product_id']
-    side = fill['side'].capitalize
-    size = fill['size'].to_f.round(2)
-    price = fill['price'].to_f.round(4)
-    usd = fill['usd_volume'].to_f.round(2)
+    product = fill['product_id']
+    side    = fill['side'].capitalize
+
+    size    = fill['size'].to_f.round(2)
+    price   = fill['price'].to_f.round(4)
+    usd     = fill['usd_volume'].to_f.round(2)
+
     info = "#{size} @ #{price} (#{usd}$)"
 
-    value1, value2, value3 = product_id, side, info
+    value1, value2, value3 = product, side, info
 
     Syslog.info "Notifying #@maker_event: #{value1}, #{value2}, #{value3}"
 
