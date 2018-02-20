@@ -2,7 +2,7 @@
 require 'coinbase/exchange'
 require 'faraday'
 require 'json'
-require 'pry'
+require 'syslog'
 
 class Notifier
   def self.poll(options = {})
@@ -14,6 +14,8 @@ class Notifier
   end
 
   def initialize(options = {})
+    Syslog.open 'gdax-notifier'
+
     @rest_api = Coinbase::Exchange::Client.new(
       ENV.fetch('GDAX_API_KEY'),
       ENV.fetch('GDAX_API_SECRET'),
@@ -27,6 +29,8 @@ class Notifier
     @fill_cache  = {}
 
     prime_fill_cache
+
+    Syslog.info "gdax-notifier started, frequency: #{@frequency}s"
   end
 
   def poll
@@ -51,14 +55,18 @@ class Notifier
     usd = fill['usd_volume'].to_f.round(2)
     info = "#{size} @ #{price} (#{usd}$)"
 
+    value1, value2, value3 = product_id, side, info
+
+    Syslog.info "Notifying #@maker_event: #{value1}, #{value2}, #{value3}"
+
     conn = Faraday.new('https://maker.ifttt.com/')
     conn.post do |req|
       req.url "/trigger/#{@maker_event}/with/key/#{@maker_key}"
       req.headers['Content-Type'] = 'application/json'
       req.body = {
-        value1: product_id,
-        value2: side,
-        value3: info
+        value1: value1,
+        value2: value2,
+        value3: value3
       }.to_json
     end
   end
