@@ -14,7 +14,7 @@ class Notifier
   end
 
   def initialize(options = {})
-    Syslog.open 'gdax-notifier'
+    Syslog.open 'gdax-notifier' unless Syslog.opened?
 
     @rest_api = Coinbase::Exchange::Client.new(
       ENV.fetch('GDAX_API_KEY'),
