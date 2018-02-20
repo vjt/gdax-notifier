@@ -9,7 +9,7 @@ class Notifier
     new(options).poll
 
   rescue Exception => e
-    $stderr.puts e.message
+    Syslog.info "Exiting: #{e.message}"
     exit 1
   end
 
@@ -30,7 +30,7 @@ class Notifier
 
     prime_fill_cache
 
-    Syslog.info "gdax-notifier started, frequency: #{@frequency}s"
+    Syslog.info "Started, frequency: #{@frequency}s"
   end
 
   def poll
