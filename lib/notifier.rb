@@ -5,15 +5,15 @@ require 'json'
 require 'syslog'
 
 class Notifier
-  def self.poll(options = {})
-    new(options).poll
+  def self.poll
+    new.poll
 
   rescue Exception => e
     Syslog.info "Exiting: #{e.message}"
     exit 1
   end
 
-  def initialize(options = {})
+  def initialize
     Syslog.open 'gdax-notifier' unless Syslog.opened?
 
     @rest_api = Coinbase::Exchange::Client.new(
@@ -26,7 +26,6 @@ class Notifier
     @maker_key   = ENV.fetch('MAKER_KEY')
 
     @frequency   = ENV.fetch('FREQ', 15).to_i # Seconds
-    @fill_cache  = {}
 
     prime_fill_cache
 
@@ -78,6 +77,8 @@ class Notifier
     end
 
     def prime_fill_cache
+      @fill_cache = {}
+
       fills.each {|fill| cache(fill) }
     end
 

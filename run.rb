@@ -2,4 +2,4 @@
 
 require_relative 'lib/notifier'
 
-Notifier.poll(frequency: 10)
+Notifier.poll
